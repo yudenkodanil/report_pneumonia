@@ -7,7 +7,6 @@ from rich.logging import RichHandler
 import copy
 from openpyxl import load_workbook
 from collections import defaultdict
-import pprint
 
 # --- Настройка логирования ---
 logging.basicConfig(
@@ -314,7 +313,6 @@ if __name__ == "__main__":
     if df is not None:
         # Анализ по территории (АО + районы)
         result_regions = analyze_population_full(df)
-        pprint.pprint(result_regions)
         print_structure(result_regions)
         fill_report(result_regions, config.TEMPLATE_FILE_AO, config.OUTPUT_FILE_AO)
 
