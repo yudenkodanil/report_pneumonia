@@ -13,8 +13,8 @@ logging.basicConfig(
     handlers=[RichHandler(console=Console(), rich_tracebacks=True)]
 )
 logger = logging.getLogger("population_analysis")
-
 console = Console()
+
 
 # --- Функции обработки ---
 def preprocess_file(input_file: str) -> pd.DataFrame | None:
@@ -39,7 +39,16 @@ def preprocess_file(input_file: str) -> pd.DataFrame | None:
         df = df.loc[:, df.columns.notna()]
 
         # Заполняем соц. статус: если столбец L пустой, берем значение из столбца K
-        df.iloc[:, 11] = df.iloc[:, 11].fillna(df.iloc[:, 10])
+        if "Социальный статус" in df.columns and df.columns.get_loc("Социальный статус") >= 0:
+            idx_status = df.columns.get_loc("Социальный статус")
+            df.iloc[:, idx_status] = df.iloc[:, idx_status].fillna(df.iloc[:, idx_status-1])
+
+        # Преобразуем даты в datetime
+        df['Дата рождения'] = pd.to_datetime(df['Дата рождения'], errors='coerce')
+        df['Дата подачи ЭИ'] = pd.to_datetime(df['Дата подачи ЭИ'], errors='coerce')
+
+        # Считаем возраст в годах
+        df['Возраст'] = (df['Дата подачи ЭИ'] - df['Дата рождения']).dt.days / 365.25
 
         df.to_excel("df_filtred.xlsx", sheet_name="main", index=False)
         logger.info("Файл успешно предобработан и экспортирован: df_filtred.xlsx")
@@ -55,17 +64,11 @@ def analyze_population_by_district(df: pd.DataFrame, districts: list) -> dict:
     logger.info("Начало анализа возрастной структуры")
     results = {}
 
-    df['Дата рождения'] = pd.to_datetime(df['Дата рождения'], errors='coerce')
-    df['Дата регистрации заболевания'] = pd.to_datetime(df['Дата подачи ЭИ'], errors='coerce')
-
     for district in districts:
-        df_district = df[df['Административная территория (город)'] == district].copy()
+        df_district = df[df['Административная территория (город)'] == district]
         if df_district.empty:
             logger.warning(f"Нет данных для района: {district}")
             continue
-
-        df_district['Возраст'] = (df_district['Дата регистрации заболевания'] - df_district['Дата рождения']).dt.days / 365.25
-        logger.info(f"Обработан район: {district}")
 
         counts = {}
         for (low, high), label in zip(config.AGE_GROUP, config.AGE_GROUP_NAME):
@@ -75,6 +78,7 @@ def analyze_population_by_district(df: pd.DataFrame, districts: list) -> dict:
                 counts[label] = df_district[(df_district['Возраст'] >= low) & (df_district['Возраст'] < high)].shape[0]
 
         results[district] = counts
+        logger.info(f"Обработан район: {district}")
 
     return results
 
@@ -93,23 +97,22 @@ def classify_status(status: str, age: float | None = None) -> str:
         if keyword.lower() in status:
             return group
 
-    # проверка по возрасту
-    if age is not None:
-        try:
-            age = float(age)
-            for group_def in config.AGE_GROUPS_BY_STATUS:
-                min_age = group_def["min_age"]
-                max_age = group_def["max_age"]
-                if max_age is None:
-                    if age >= min_age:
-                        return group_def["group"]
-                elif min_age <= age <= max_age:
-                    return group_def["group"]
-        except (ValueError, TypeError):
-            pass
+    # # проверка по возрасту
+    # if age is not None:
+    #     try:
+    #         age = float(age)
+    #         for group_def in config.AGE_GROUPS_BY_STATUS:
+    #             min_age = group_def["min_age"]
+    #             max_age = group_def["max_age"]
+    #             if max_age is None:
+    #                 if age >= min_age:
+    #                     return group_def["group"]
+    #             elif min_age <= age <= max_age:
+    #                 return group_def["group"]
+    #     except (ValueError, TypeError):
+    #         pass
 
     return "Работающие взрослые"
-
 
 
 def analyze_social_status_by_district(df: pd.DataFrame, districts: list) -> dict:
@@ -121,7 +124,7 @@ def analyze_social_status_by_district(df: pd.DataFrame, districts: list) -> dict
     df['Социальный статус'] = df['Социальный статус'].astype(str).str.strip()
 
     for district in districts:
-        df_district = df[df['Административная территория (город)'] == district].copy()
+        df_district = df[df['Административная территория (город)'] == district]
         if df_district.empty:
             logger.warning(f"Нет данных для района: {district}")
             continue
