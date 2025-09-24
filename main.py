@@ -270,10 +270,7 @@ def fill_report(result: dict, template_file: str, output_file: str):
             
     wb.save(output_file)
     logger.info(f"Отчет по Амурской области сохранен в {output_file}")
-        
-    wb.save(output_file)
-    # print(f"Отчет по Амурской области сохранен в {output_file}")
-    logger.info(f"Отчет по Амурской области сохранен в {output_file}")
+
 
 def _fill_block(ws, data_block: dict, layout: dict, row: int):
     # Возрастные группы
