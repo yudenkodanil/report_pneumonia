@@ -7,6 +7,7 @@ from rich.logging import RichHandler
 import copy
 from openpyxl import load_workbook
 from collections import defaultdict
+import pprint
 
 # --- Настройка логирования ---
 logging.basicConfig(
@@ -99,21 +100,32 @@ def preprocess_file(input_file: str) -> pd.DataFrame | None:
             idx_status = df.columns.get_loc(config.COL_SOCIAL_STATUS)
             df.iloc[:, idx_status] = df.iloc[:, idx_status].fillna(df.iloc[:, idx_status-1])
 
+        # Преобразуем даты
         df[config.COL_BIRTH_DATE] = pd.to_datetime(df[config.COL_BIRTH_DATE], errors='coerce')
         df[config.COL_SUBMIT_DATE] = pd.to_datetime(df[config.COL_SUBMIT_DATE], errors='coerce')
         df['Возраст'] = (df[config.COL_SUBMIT_DATE] - df[config.COL_BIRTH_DATE]).dt.days / 365.25
 
+        # --- Замена названий населённых пунктов на районы ---
+        normalization = {
+            "Сковородино": "Сковородинский район",
+            # можно добавить другие соответствия при необходимости
+        }
+        if config.COL_DISTRICT in df.columns:
+            df[config.COL_DISTRICT] = df[config.COL_DISTRICT].replace(normalization)
+
+        # Экспортируем в новый Excel для проверки
+        df.to_excel("df_filtred.xlsx", sheet_name="main", index=False)
+
         logger.info("Файл успешно предобработан")
         return df
+
     except FileNotFoundError:
         logger.error(f"Файл {input_file} не найден.")
         return None
 
-
 # --- Создание новой структуры для региона ---
 def new_region_structure():
     return {"age": {}, "social": {}, "severity": {}}
-
 
 # --- Основной анализ ---
 def analyze_population_full(df: pd.DataFrame) -> dict:
@@ -146,8 +158,6 @@ def analyze_population_full(df: pd.DataFrame) -> dict:
 
     logger.info("Комплексный анализ завершен")
     return result
-
-from collections import defaultdict
 
 def analyze_by_med_org(df: pd.DataFrame):
     """Анализ по медицинским организациям города Благовещенска с учетом частичных совпадений названий МО"""
@@ -199,7 +209,6 @@ def _print_category_table(table: Table, title: str, data: dict, order: list[str]
     for key in order:
         table.add_row(f"[green]{key}[/green]", f"[bright_yellow]{data.get(key, 0)}[/bright_yellow]")
 
-
 def _print_table(title: str, data: dict):
     total = sum(data.get("age", {}).values())
     table = Table(title=f"{title} ({total} ЭИ)", title_style="bold magenta")
@@ -220,7 +229,6 @@ def _print_table(title: str, data: dict):
 
     console.print(table)
 
-
 def print_structure(structure: dict):
     for region_name, data in structure.items():
         if region_name == "Районы":
@@ -230,26 +238,43 @@ def print_structure(structure: dict):
         else:
             _print_table(region_name, data)
 
-
 def fill_report(result: dict, template_file: str, output_file: str):
     wb = load_workbook(template_file)
     ws = wb.active
 
-    # строка для Благовещенска
+    # Cтрока для Благовещенска
     row = config.REPORT_LAYOUT["start_row"]
-    _fill_block(ws, result["Благовещенск"], config.REPORT_LAYOUT, row)
 
-    # районы идут по порядку из ADM_TERR
+    # Cначала Благовещенск (как и было)
+    _fill_block(ws, result[config.CITY_MAIN], config.REPORT_LAYOUT, row)
+    row += 1
+
+    # Затем все районы в порядке ADM_TERR
     for district in config.ADM_TERR:
-        row += 1
-        if district not in result["Районы"]:
+        # !!! ВОТ ИСПРАВЛЕНИЕ !!!
+        # Пропускаем Благовещенск, так как он уже обработан
+        if district == config.CITY_MAIN:
             continue
-        _fill_block(ws, result["Районы"][district], config.REPORT_LAYOUT, row)
 
+        if district in result["Районы"]:
+            _fill_block(ws, result["Районы"][district], config.REPORT_LAYOUT, row)
+        else:
+            # Eсли данных нет, вставляем нули
+            empty_block = {
+                "age": {k: 0 for k in config.AGE_GROUP_NAME},
+                "social": {k: 0 for k in config.SOCIAL_GROUP_ORDER},
+                "severity": {k: 0 for k in config.SEVERITY_ORDER}
+            }
+            _fill_block(ws, empty_block, config.REPORT_LAYOUT, row)
+        
+        row += 1 # Увеличиваем счетчик для каждого района (кроме пропущенного Благовещенска)
+            
+    wb.save(output_file)
+    logger.info(f"Отчет по Амурской области сохранен в {output_file}")
+        
     wb.save(output_file)
     # print(f"Отчет по Амурской области сохранен в {output_file}")
     logger.info(f"Отчет по Амурской области сохранен в {output_file}")
-
 
 def _fill_block(ws, data_block: dict, layout: dict, row: int):
     # Возрастные группы
@@ -263,10 +288,6 @@ def _fill_block(ws, data_block: dict, layout: dict, row: int):
     # Степень тяжести
     for severity, col in layout["severity"].items():
         ws.cell(row=row, column=col, value=data_block["severity"].get(severity, 0))
-
-
-
-
 
 def fill_report_by_med_org(result: dict, template_file: str, output_file: str):
     wb = load_workbook(template_file)
@@ -293,6 +314,7 @@ if __name__ == "__main__":
     if df is not None:
         # Анализ по территории (АО + районы)
         result_regions = analyze_population_full(df)
+        pprint.pprint(result_regions)
         print_structure(result_regions)
         fill_report(result_regions, config.TEMPLATE_FILE_AO, config.OUTPUT_FILE_AO)
 
