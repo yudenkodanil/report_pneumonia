@@ -34,7 +34,7 @@
 |-----------|---------|
 | **Windows Command Prompt** | ```bash<br>venv\Scripts\activate``` |
 | **Windows PowerShell** | ```bash<br>.\venv\Scripts\Activate.ps1``` |
-| **Mac / Linux** | ```bash<br>source venv/bin/activate``` |
+| **Mac / Linux** | ```bash<b>source venv/bin/activate``` |
 
 > После активации вы увидите `(venv)` в начале строки терминала.
 
@@ -132,3 +132,13 @@ project/
 ## 📬 Контакты
 
 Для вопросов или предложений по проекту обращайтесь к разработчику.
+
+
+## Сборка исполняемого файла
+```bash
+pyinstaller --onefile --noconsole \
+    --add-data "shablon_ao.xlsx:." \
+    --add-data "shablon_blag.xlsx:." \
+    --add-data "config.py:." \
+    gui.py
+```
