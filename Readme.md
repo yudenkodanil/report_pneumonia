@@ -135,10 +135,18 @@ project/
 
 
 ## Сборка исполняемого файла
+- MACOS
+
 ```bash
 pyinstaller --onefile --noconsole \
     --add-data "shablon_ao.xlsx:." \
     --add-data "shablon_blag.xlsx:." \
     --add-data "config.py:." \
     gui.py
+```
+
+- WINDOWS
+
+```bash
+pyinstaller --onefile --noconsole --add-data "shablon_ao.xlsx;." --add-data "shablon_blag.xlsx;." --add-data "config.py;." gui.py
 ```

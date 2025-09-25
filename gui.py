@@ -22,10 +22,10 @@ def choose_file():
         threading.Thread(target=run_analysis, args=(file_path,), daemon=True).start()
 
 root = tk.Tk()
-root.title("Анализ данных для отчета по пневмонии")
+root.title("Анализ данных для отчета по пневмонии (@yudenkodanil)")
 
 tk.Label(root, text="Выберите Excel-файл для анализа:").pack(pady=10)
 tk.Button(root, text="Выбрать файл", command=choose_file).pack(pady=5)
 
-root.geometry("400x200")
+root.geometry("500x200")
 root.mainloop()
